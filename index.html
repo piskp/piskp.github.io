@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pisk Pro 🎧</title>
     <style>
         :root {
@@ -11,49 +11,42 @@
             --panel-color: #fff;
             --button-color: #6200ee;
             --button-text: white;
-            --active-color: #00ff00;
         }
         .dark-mode {
             --bg-color: #121212;
             --text-color: #e0e0e0;
             --panel-color: #1e1e1e;
             --button-color: #bb86fc;
-            --active-color: #03dac6;
         }
         body {
             background-color: var(--bg-color);
             color: var(--text-color);
             font-family: Arial, sans-serif;
-            max-width: 100%;
-            margin: 0;
-            padding: 10px;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
             transition: all 0.3s;
-            -webkit-tap-highlight-color: transparent;
         }
         .panel {
             background-color: var(--panel-color);
-            padding: 15px;
+            padding: 20px;
             border-radius: 10px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            margin-bottom: 15px;
-        }
-        h1, h2 {
-            margin-top: 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
         }
         button {
             background-color: var(--button-color);
             color: var(--button-text);
             border: none;
-            padding: 12px 15px;
+            padding: 10px 15px;
             margin: 5px;
-            border-radius: 8px;
+            border-radius: 5px;
             cursor: pointer;
-            font-size: 16px;
-            width: 100%;
-            box-sizing: border-box;
+            font-size: 14px;
+            transition: transform 0.2s;
         }
-        button:active {
-            transform: scale(0.98);
+        button:hover {
+            transform: scale(1.05);
         }
         button:disabled {
             background-color: #cccccc;
@@ -61,43 +54,17 @@
         }
         .slider-container {
             margin: 15px 0;
+            text-align: left;
         }
         input[type="range"] {
             width: 100%;
-            height: 8px;
-            -webkit-appearance: none;
-            background: #ddd;
-            border-radius: 4px;
-        }
-        input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            width: 20px;
-            height: 20px;
-            background: var(--button-color);
-            border-radius: 50%;
         }
         .status {
             font-weight: bold;
             margin: 10px 0;
-            text-align: center;
         }
         .active {
-            position: relative;
-        }
-        .active::after {
-            content: "";
-            position: absolute;
-            top: 2px;
-            right: 2px;
-            width: 8px;
-            height: 8px;
-            background-color: var(--active-color);
-            border-radius: 50%;
-        }
-        .value-display {
-            font-size: 14px;
-            color: var(--text-color);
-            opacity: 0.8;
+            box-shadow: 0 0 10px #00ff00;
         }
     </style>
 </head>
@@ -120,9 +87,8 @@
         <button id="whisperBtn">🔇 Шёпот: ВЫКЛ</button>
         
         <div class="slider-container">
-            <label for="rangeSlider">Дальность:</label>
-            <input type="range" id="rangeSlider" min="10" max="200" value="100">
-            <div class="value-display" id="rangeValue">100%</div>
+            <label for="rangeSlider">Дальность: <span id="rangeValue">50%</span></label>
+            <input type="range" id="rangeSlider" min="0" max="100" value="50">
         </div>
     </div>
 
@@ -147,91 +113,69 @@
         let isWindReductionOn = false;
         let isWhisperOn = false;
 
-        // Инициализация аудио с минимальной задержкой
+        // Инициализация аудио
         async function initAudio() {
             try {
-                // Закрываем предыдущий контекст, если есть
-                if (audioContext) {
-                    await audioContext.close();
-                }
-                
-                // Создаем новый контекст с оптимизацией для мобильных
                 audioContext = new (window.AudioContext || window.webkitAudioContext)({
-                    latencyHint: 'interactive',
-                    sampleRate: 48000 // Более высокая частота для уменьшения задержки
+                    latencyHint: 'interactive'
                 });
                 
-                // Получаем поток с микрофона с минимальной обработкой
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     audio: {
                         echoCancellation: false,
                         noiseSuppression: false,
-                        autoGainControl: false,
-                        channelCount: 1 // Моно для уменьшения нагрузки
+                        autoGainControl: false
                     }
                 });
                 
                 microphone = audioContext.createMediaStreamSource(stream);
                 gainNode = audioContext.createGain();
                 
-                // Инициализация фильтров
+                // Создаем фильтры (пока как заглушки)
                 windFilter = audioContext.createBiquadFilter();
-                windFilter.type = "highpass";
-                windFilter.frequency.value = 500;
-                
                 whisperFilter = audioContext.createGain();
-                whisperFilter.gain.value = 2.0;
                 
-                // Первое подключение
+                // Начальные настройки
                 updateAudioChain();
                 
-                // Обновляем интерфейс
                 startBtn.disabled = true;
                 stopBtn.disabled = false;
-                statusEl.textContent = 'Статус: микрофон включен (задержка ~30мс)';
+                statusEl.textContent = 'Статус: микрофон включен';
                 isActive = true;
                 
             } catch (error) {
-                console.error("Ошибка инициализации:", error);
-                statusEl.textContent = 'Ошибка: ' + (error.message || 'неизвестная ошибка');
-                
-                // Пробуем восстановить контекст
-                if (audioContext && audioContext.state !== 'closed') {
-                    await audioContext.resume();
-                }
+                console.error("Ошибка:", error);
+                statusEl.textContent = 'Ошибка: ' + error.message;
             }
         }
 
-        // Обновление аудио-цепочки
+        // Обновляем аудио-цепочку
         function updateAudioChain() {
-            if (!isActive || !microphone) return;
+            if (!isActive) return;
             
-            try {
-                // Отключаем все соединения
-                microphone.disconnect();
-                
-                // Собираем цепочку в зависимости от настроек
-                let lastNode = microphone;
-                
-                if (isWindReductionOn) {
-                    lastNode.connect(windFilter);
-                    lastNode = windFilter;
-                }
-                
-                if (isWhisperOn) {
-                    lastNode.connect(whisperFilter);
-                    lastNode = whisperFilter;
-                }
-                
-                // Применяем "дальность" (усиление/ослабление)
-                gainNode.gain.value = rangeSlider.value / 100;
-                lastNode.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-                
-            } catch (error) {
-                console.error("Ошибка обновления цепочки:", error);
-                statusEl.textContent = 'Ошибка аудиоцепочки';
+            // Отключаем все соединения
+            microphone.disconnect();
+            
+            // Собираем цепочку заново
+            let lastNode = microphone;
+            
+            if (isWindReductionOn) {
+                windFilter.type = "highpass";
+                windFilter.frequency.value = 500;
+                lastNode.connect(windFilter);
+                lastNode = windFilter;
             }
+            
+            if (isWhisperOn) {
+                whisperFilter.gain.value = 2.0;
+                lastNode.connect(whisperFilter);
+                lastNode = whisperFilter;
+            }
+            
+            // Применяем дальность (упрощённо)
+            gainNode.gain.value = rangeSlider.value / 50;
+            lastNode.connect(gainNode);
+            gainNode.connect(audioContext.destination);
         }
 
         // Тёмная тема
@@ -246,19 +190,13 @@
         startBtn.addEventListener('click', initAudio);
         
         stopBtn.addEventListener('click', () => {
-            if (isActive) {
-                try {
-                    microphone.disconnect();
-                    if (audioContext.state !== 'closed') {
-                        audioContext.close();
-                    }
-                    startBtn.disabled = false;
-                    stopBtn.disabled = true;
-                    statusEl.textContent = 'Статус: микрофон выключен';
-                    isActive = false;
-                } catch (error) {
-                    console.error("Ошибка выключения:", error);
-                }
+            if (microphone) {
+                microphone.disconnect();
+                audioContext.close();
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                statusEl.textContent = 'Статус: микрофон выключен';
+                isActive = false;
             }
         });
 
@@ -281,24 +219,15 @@
         // Дальность
         rangeSlider.addEventListener('input', () => {
             rangeValue.textContent = `${rangeSlider.value}%`;
-            if (isActive) {
-                gainNode.gain.value = rangeSlider.value / 100;
-            }
+            updateAudioChain();
         });
 
-        // Автовыключение при закрытии
+        // Автовыключение
         window.addEventListener('beforeunload', () => {
-            if (isActive && microphone) {
+            if (isActive) {
                 microphone.disconnect();
             }
         });
-
-        // Восстановление после паузы (для мобильных)
-        document.addEventListener('click', async () => {
-            if (audioContext && audioContext.state === 'suspended') {
-                await audioContext.resume();
-            }
-        }, { once: true });
     </script>
 </body>
-  </html>
+    </html>
