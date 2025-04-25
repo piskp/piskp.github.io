@@ -227,6 +227,20 @@
             if (isActive) {
                 microphone.disconnect();
             }
+
+            // Автовозобновление при паузе
+   document.addEventListener('visibilitychange', async () => {
+       if (audioContext?.state === 'suspended') {
+           await audioContext.resume();
+       }
+   });
+
+   // Периодическая "пробудка" (раз в 20 сек)
+   setInterval(async () => {
+       if (isActive && audioContext?.state !== 'running') {
+           await audioContext.resume();
+       }
+   }, 20000);
         });
     </script>
 </body>
