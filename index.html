@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pisk Pro 🎧</title>
+    <!-- ИИ-библиотеки -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/rnnoise-wasm@0.1.0/dist/rnnoise.min.js"></script>
     <style>
         :root {
             --bg-color: #f5f5f5;
@@ -11,12 +14,16 @@
             --panel-color: #fff;
             --button-color: #6200ee;
             --button-text: white;
+            --active-color: #00ff00;
+            --mic-off: #ff4444;
+            --mic-on: #00c851;
         }
         .dark-mode {
             --bg-color: #121212;
             --text-color: #e0e0e0;
             --panel-color: #1e1e1e;
             --button-color: #bb86fc;
+            --active-color: #03dac6;
         }
         body {
             background-color: var(--bg-color);
@@ -38,147 +45,305 @@
             background-color: var(--button-color);
             color: var(--button-text);
             border: none;
-            padding: 10px 15px;
+            padding: 12px 15px;
             margin: 5px;
-            border-radius: 5px;
+            border-radius: 8px;
             cursor: pointer;
-            font-size: 14px;
-            transition: transform 0.2s;
+            font-size: 16px;
+            width: 100%;
+            box-sizing: border-box;
+            transition: all 0.2s;
         }
-        button:hover {
-            transform: scale(1.05);
+        button:active {
+            transform: scale(0.98);
         }
-        button:disabled {
-            background-color: #cccccc;
-            transform: none;
+        #startBtn.active {
+            background-color: var(--mic-on);
+            box-shadow: 0 0 0 2px var(--mic-on);
+        }
+        #stopBtn {
+            background-color: var(--mic-off);
         }
         .slider-container {
             margin: 15px 0;
-            text-align: left;
         }
-        input[type="range"] {
-            width: 100%;
+        .active-mode {
+            position: relative;
+            background-color: var(--active-color);
+            color: black;
+        }
+        .active-mode::after {
+            content: "✓";
+            position: absolute;
+            right: 15px;
         }
         .status {
             font-weight: bold;
-            margin: 10px 0;
+            text-align: center;
+            margin: 15px 0;
+            padding: 10px;
+            border-radius: 5px;
         }
-        .active {
-            box-shadow: 0 0 10px #00ff00;
+        .status-on {
+            background-color: var(--mic-on);
+            color: white;
+        }
+        .status-off {
+            background-color: var(--mic-off);
+            color: white;
+        }
+        .indicator {
+            display: inline-block;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .indicator-on {
+            background-color: var(--mic-on);
+            box-shadow: 0 0 10px var(--mic-on);
+        }
+        .indicator-off {
+            background-color: var(--mic-off);
         }
     </style>
 </head>
 <body>
     <div class="panel">
         <h1>Pisk Pro 🎧</h1>
-        <p>Аудиомониторинг с продвинутыми настройками</p>
+        <p>Аудиомониторинг с ИИ-фильтрами</p>
         
-        <button id="themeBtn">🌙 Тёмная тема</button>
-        <button id="startBtn">🎤 Включить микрофон</button>
+        <button id="startBtn">🎤 <span class="indicator indicator-off"></span>Включить микрофон</button>
         <button id="stopBtn" disabled>🔴 Выключить</button>
-        
-        <div class="status" id="status">Статус: микрофон выключен</div>
+        <div class="status status-off" id="status">Микрофон выключен</div>
     </div>
 
     <div class="panel">
-        <h2>Фильтры</h2>
-        
-        <button id="windBtn">🌬️ Шум ветра: ВЫКЛ</button>
-        <button id="whisperBtn">🔇 Шёпот: ВЫКЛ</button>
-        
+        <h2>Режимы</h2>
+        <button id="streetModeBtn">🌆 Уличный режим</button>
+        <button id="pocketModeBtn">👖 Режим кармана</button>
+        <button id="whisperBtn">🔇 Режим шёпота</button>
+        <button id="aiToggleBtn">🤖 ИИ-фильтр</button>
+    </div>
+
+    <div class="panel">
+        <h2>Настройки</h2>
         <div class="slider-container">
             <label for="rangeSlider">Дальность: <span id="rangeValue">50%</span></label>
-            <input type="range" id="rangeSlider" min="0" max="100" value="50">
+            <input type="range" id="rangeSlider" min="10" max="200" value="100">
+        </div>
+        <div class="slider-container">
+            <label for="noiseFilter">Подавление шума: <span id="noiseFilterValue">50%</span></label>
+            <input type="range" id="noiseFilter" min="0" max="100" value="50">
         </div>
     </div>
+
+    <button id="themeBtn">🌙 Тёмная тема</button>
 
     <script>
         // Элементы интерфейса
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
-        const themeBtn = document.getElementById('themeBtn');
-        const windBtn = document.getElementById('windBtn');
+        const streetModeBtn = document.getElementById('streetModeBtn');
+        const pocketModeBtn = document.getElementById('pocketModeBtn');
         const whisperBtn = document.getElementById('whisperBtn');
+        const aiToggleBtn = document.getElementById('aiToggleBtn');
         const rangeSlider = document.getElementById('rangeSlider');
         const rangeValue = document.getElementById('rangeValue');
+        const noiseFilterSlider = document.getElementById('noiseFilter');
+        const noiseFilterValue = document.getElementById('noiseFilterValue');
+        const themeBtn = document.getElementById('themeBtn');
         const statusEl = document.getElementById('status');
-        
+        const micIndicator = document.querySelector('.indicator');
+
         // Аудио-переменные
         let audioContext;
         let microphone;
-        let gainNode;
-        let windFilter;
+        let noiseFilter;
+        let voiceBoost;
         let whisperFilter;
+        let compressor;
+        let gainNode;
         let isActive = false;
-        let isWindReductionOn = false;
+        let isStreetMode = false;
+        let isPocketMode = false;
         let isWhisperOn = false;
+        let isAIEnabled = false;
+        let noiseModel;
+        let audioStream;
 
-        // Инициализация аудио
-        async function initAudio() {
+        // Инициализация ИИ-модели
+        async function initNoiseModel() {
             try {
+                noiseModel = await RNNoise.load();
+                console.log("ИИ-модель загружена!");
+            } catch (error) {
+                console.error("Ошибка загрузки ИИ:", error);
+            }
+        }
+
+        // Включение микрофона
+        async function startMicrophone() {
+            try {
+                // Создаём аудиоконтекст
                 audioContext = new (window.AudioContext || window.webkitAudioContext)({
                     latencyHint: 'interactive'
                 });
-                
-                const stream = await navigator.mediaDevices.getUserMedia({ 
+
+                // Получаем поток с микрофона
+                audioStream = await navigator.mediaDevices.getUserMedia({ 
                     audio: {
                         echoCancellation: false,
                         noiseSuppression: false,
-                        autoGainControl: false
-                    }
+                        autoGainControl: false,
+                        channelCount: 1
+                    } 
                 });
-                
-                microphone = audioContext.createMediaStreamSource(stream);
-                gainNode = audioContext.createGain();
-                
-                // Создаем фильтры (пока как заглушки)
-                windFilter = audioContext.createBiquadFilter();
+
+                // Создаем фильтры
+                noiseFilter = audioContext.createBiquadFilter();
+                noiseFilter.type = "highpass";
+                noiseFilter.frequency.value = 300;
+
+                voiceBoost = audioContext.createBiquadFilter();
+                voiceBoost.type = "peaking";
+                voiceBoost.frequency.value = 1500;
+                voiceBoost.gain.value = 10;
+                voiceBoost.Q.value = 1;
+
                 whisperFilter = audioContext.createGain();
-                
-                // Начальные настройки
+                whisperFilter.gain.value = 1.0;
+
+                compressor = audioContext.createDynamicsCompressor();
+                compressor.threshold.value = -50;
+                compressor.ratio.value = 12;
+
+                gainNode = audioContext.createGain();
+                gainNode.gain.value = rangeSlider.value / 100;
+
+                microphone = audioContext.createMediaStreamSource(audioStream);
                 updateAudioChain();
-                
-                startBtn.disabled = true;
+
+                // Обновляем интерфейс
+                startBtn.classList.add('active');
                 stopBtn.disabled = false;
-                statusEl.textContent = 'Статус: микрофон включен';
+                micIndicator.classList.replace('indicator-off', 'indicator-on');
+                statusEl.textContent = 'Микрофон включен';
+                statusEl.className = 'status status-on';
                 isActive = true;
-                
+
+                // Загружаем ИИ
+                await initNoiseModel();
+
             } catch (error) {
-                console.error("Ошибка:", error);
                 statusEl.textContent = 'Ошибка: ' + error.message;
+                console.error("Ошибка микрофона:", error);
             }
         }
 
-        // Обновляем аудио-цепочку
+        // Обновление аудио-цепочки
         function updateAudioChain() {
             if (!isActive) return;
-            
-            // Отключаем все соединения
+
             microphone.disconnect();
-            
-            // Собираем цепочку заново
-            let lastNode = microphone;
-            
-            if (isWindReductionOn) {
-                windFilter.type = "highpass";
-                windFilter.frequency.value = 500;
-                lastNode.connect(windFilter);
-                lastNode = windFilter;
+
+            let source = microphone;
+
+            // Применяем ИИ-фильтр если включен
+            if (isAIEnabled && noiseModel) {
+                const processedStream = noiseModel.filter(audioStream);
+                source = audioContext.createMediaStreamSource(processedStream);
             }
-            
-            if (isWhisperOn) {
-                whisperFilter.gain.value = 2.0;
-                lastNode.connect(whisperFilter);
-                lastNode = whisperFilter;
-            }
-            
-            // Применяем дальность (упрощённо)
-            gainNode.gain.value = rangeSlider.value / 50;
-            lastNode.connect(gainNode);
-            gainNode.connect(audioContext.destination);
+
+            // Подключаем все фильтры
+            source.connect(noiseFilter)
+                 .connect(voiceBoost)
+                 .connect(whisperFilter)
+                 .connect(compressor)
+                 .connect(gainNode)
+                 .connect(audioContext.destination);
         }
 
-        // Тёмная тема
+        // Режимы
+        function setStreetMode() {
+            noiseFilter.frequency.value = 400;
+            voiceBoost.gain.value = 15;
+            compressor.ratio.value = 10;
+            statusEl.textContent = 'Режим: улица (шум машин подавлен)';
+        }
+
+        function setPocketMode() {
+            noiseFilter.frequency.value = 500;
+            voiceBoost.gain.value = 20;
+            compressor.ratio.value = 20;
+            statusEl.textContent = 'Режим: карман (шуршание убрано)';
+        }
+
+        function setWhisperMode() {
+            whisperFilter.gain.value = isWhisperOn ? 2.0 : 1.0;
+            statusEl.textContent = isWhisperOn ? 'Режим шёпота: ВКЛ' : 'Режим шёпота: ВЫКЛ';
+        }
+
+        // События
+        startBtn.addEventListener('click', startMicrophone);
+        
+        stopBtn.addEventListener('click', () => {
+            if (isActive) {
+                microphone.disconnect();
+                audioContext.close();
+                startBtn.classList.remove('active');
+                stopBtn.disabled = true;
+                micIndicator.classList.replace('indicator-on', 'indicator-off');
+                statusEl.textContent = 'Микрофон выключен';
+                statusEl.className = 'status status-off';
+                isActive = false;
+            }
+        });
+
+        streetModeBtn.addEventListener('click', () => {
+            isStreetMode = !isStreetMode;
+            isPocketMode = false;
+            streetModeBtn.classList.toggle('active-mode');
+            pocketModeBtn.classList.remove('active-mode');
+            if (isStreetMode) setStreetMode();
+            updateAudioChain();
+        });
+
+        pocketModeBtn.addEventListener('click', () => {
+            isPocketMode = !isPocketMode;
+            isStreetMode = false;
+            pocketModeBtn.classList.toggle('active-mode');
+            streetModeBtn.classList.remove('active-mode');
+            if (isPocketMode) setPocketMode();
+            updateAudioChain();
+        });
+
+        whisperBtn.addEventListener('click', () => {
+            isWhisperOn = !isWhisperOn;
+            whisperBtn.classList.toggle('active-mode');
+            setWhisperMode();
+            updateAudioChain();
+        });
+
+        aiToggleBtn.addEventListener('click', () => {
+            isAIEnabled = !isAIEnabled;
+            aiToggleBtn.classList.toggle('active-mode');
+            statusEl.textContent = isAIEnabled ? 'ИИ-фильтр: ВКЛ' : 'ИИ-фильтр: ВЫКЛ';
+            updateAudioChain();
+        });
+
+        rangeSlider.addEventListener('input', (e) => {
+            const value = e.target.value;
+            rangeValue.textContent = `${value}%`;
+            gainNode.gain.value = value / 100;
+        });
+
+        noiseFilterSlider.addEventListener('input', (e) => {
+            const value = e.target.value;
+            noiseFilterValue.textContent = `${value}%`;
+            noiseFilter.frequency.value = 100 + (value * 5);
+        });
+
         themeBtn.addEventListener('click', () => {
             document.body.classList.toggle('dark-mode');
             themeBtn.textContent = document.body.classList.contains('dark-mode') 
@@ -186,48 +351,19 @@
                 : '🌙 Тёмная тема';
         });
 
-        // Управление микрофоном
-        startBtn.addEventListener('click', initAudio);
-        
-        stopBtn.addEventListener('click', () => {
-            if (microphone) {
-                microphone.disconnect();
-                audioContext.close();
-                startBtn.disabled = false;
-                stopBtn.disabled = true;
-                statusEl.textContent = 'Статус: микрофон выключен';
-                isActive = false;
+        // Автовосстановление
+        document.addEventListener('visibilitychange', async () => {
+            if (isActive && audioContext?.state === 'suspended') {
+                await audioContext.resume();
             }
         });
 
-        // Фильтр ветра
-        windBtn.addEventListener('click', () => {
-            isWindReductionOn = !isWindReductionOn;
-            windBtn.textContent = `🌬️ Шум ветра: ${isWindReductionOn ? 'ВКЛ' : 'ВЫКЛ'}`;
-            windBtn.classList.toggle('active', isWindReductionOn);
-            updateAudioChain();
-        });
-
-        // Режим шёпота
-        whisperBtn.addEventListener('click', () => {
-            isWhisperOn = !isWhisperOn;
-            whisperBtn.textContent = `🔇 Шёпот: ${isWhisperOn ? 'ВКЛ' : 'ВЫКЛ'}`;
-            whisperBtn.classList.toggle('active', isWhisperOn);
-            updateAudioChain();
-        });
-
-        // Дальность
-        rangeSlider.addEventListener('input', () => {
-            rangeValue.textContent = `${rangeSlider.value}%`;
-            updateAudioChain();
-        });
-
-        // Автовыключение
-        window.addEventListener('beforeunload', () => {
-            if (isActive) {
-                microphone.disconnect();
+        // Периодическая проверка
+        setInterval(async () => {
+            if (isActive && audioContext?.state !== 'running') {
+                await audioContext.resume();
             }
-        });
+        }, 20000);
     </script>
-</body>
+</body> 
 </html>
