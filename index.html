@@ -102,12 +102,6 @@
         const rangeSlider = document.getElementById('rangeSlider');
         const rangeValue = document.getElementById('rangeValue');
         const statusEl = document.getElementById('status');
-        console.log("AudioContext state:", audioContext.state);
-console.log("Current audio chain:", microphone?.numberOfOutputs);
-        document.getElementById('resetBtn').addEventListener('click', () => {
-    audioContext.close();
-    initAudio();
-});
         
         // Аудио-переменные
         let audioContext;
@@ -136,24 +130,12 @@ console.log("Current audio chain:", microphone?.numberOfOutputs);
                 
                 microphone = audioContext.createMediaStreamSource(stream);
                 gainNode = audioContext.createGain();
-        
-                // Заменяем это:
-// На это:
-windFilter = audioContext.createBiquadFilter();
-windFilter.type = "highpass";
-windFilter.frequency.value = 1000; // Стартовое значение
-windFilter.Q.value = 1.0;
-                function updateAudioChain() {
-    if (!isActive) return;
-    
-    microphone.disconnect();
-    
-    // Временная прямая передача, если фильтры выключены
-    if (!isWindReductionOn && !isWhisperOn) {
-        microphone.connect(gainNode).connect(audioContext.destination);
-        return;
-    }
-               // Начальные настройки
+                
+                // Создаем фильтры (пока как заглушки)
+                windFilter = audioContext.createBiquadFilter();
+                whisperFilter = audioContext.createGain();
+                
+                // Начальные настройки
                 updateAudioChain();
                 
                 startBtn.disabled = true;
@@ -165,11 +147,6 @@ windFilter.Q.value = 1.0;
                 console.error("Ошибка:", error);
                 statusEl.textContent = 'Ошибка: ' + error.message;
             }
-        }
-        async function initAudio() {
-    try {
-        if (audioContext?.state === 'suspended') {
-            await audioContext.resume();
         }
 
         // Обновляем аудио-цепочку
