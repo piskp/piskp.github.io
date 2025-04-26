@@ -2,275 +2,98 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pisk Pro 🎧</title>
-    <!-- Подключаем ИИ-библиотеки -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0"></script>
-    <script src="https://cdn.jsdelivr.net/npm/rnnoise-wasm@0.1.0/dist/rnnoise.min.js"></script>
     <style>
-        :root {
-            --bg-color: #f5f5f5;
-            --text-color: #333;
-            --panel-color: #fff;
-            --button-color: #6200ee;
-            --button-text: white;
-            --active-color: #00ff00;
-        }
-        .dark-mode {
-            --bg-color: #121212;
-            --text-color: #e0e0e0;
-            --panel-color: #1e1e1e;
-            --button-color: #bb86fc;
-            --active-color: #03dac6;
-        }
         body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
             font-family: Arial, sans-serif;
-            max-width: 100%;
-            margin: 0;
-            padding: 10px;
-            transition: all 0.3s;
-            -webkit-tap-highlight-color: transparent;
-        }
-        .panel {
-            background-color: var(--panel-color);
-            padding: 15px;
-            border-radius: 10px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            margin-bottom: 15px;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
         }
         button {
-            background-color: var(--button-color);
-            color: var(--button-text);
-            border: none;
-            padding: 12px 15px;
-            margin: 5px;
-            border-radius: 8px;
-            cursor: pointer;
+            padding: 12px 24px;
             font-size: 16px;
-            width: 100%;
-            box-sizing: border-box;
+            background: #6200ee;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            margin: 10px;
+            cursor: pointer;
         }
-        button:active {
-            transform: scale(0.98);
-        }
-        .slider-container {
-            margin: 15px 0;
-        }
-        input[type="range"] {
-            width: 100%;
-        }
-        .active {
-            position: relative;
-        }
-        .active::after {
-            content: "";
-            position: absolute;
-            top: 2px;
-            right: 2px;
-            width: 8px;
-            height: 8px;
-            background-color: var(--active-color);
-            border-radius: 50%;
+        #status {
+            font-weight: bold;
+            margin: 20px;
         }
     </style>
 </head>
 <body>
-    <div class="panel">
-        <h1>Pisk Pro 🎧</h1>
-        <p>Аудиомониторинг с ИИ-фильтрацией</p>
-        
-        <button id="themeBtn">🌙 Тёмная тема</button>
-        <button id="startBtn">🎤 Включить микрофон</button>
-        <button id="stopBtn" disabled>🔴 Выключить</button>
-    </div>
-
-    <div class="panel">
-        <h3>Режимы</h3>
-        <button id="streetModeBtn">🌆 Уличный режим</button>
-        <button id="pocketModeBtn">👖 Режим кармана</button>
-        <button id="aiToggleBtn">🤖 ИИ-фильтр: ВЫКЛ</button>
-    </div>
-
-    <div class="panel">
-        <h3>Фильтры</h3>
-        <div class="slider-container">
-            <label for="noiseFilter">Подавление шума:</label>
-            <input type="range" id="noiseFilter" min="0" max="100" value="50">
-        </div>
-        <div class="slider-container">
-            <label for="voiceBoost">Усиление голоса:</label>
-            <input type="range" id="voiceBoost" min="0" max="100" value="30">
-        </div>
-    </div>
+    <h1>Pisk Pro 🎧</h1>
+    <button id="startBtn">🎤 Включить микрофон</button>
+    <button id="stopBtn" disabled>🔴 Выключить</button>
+    <div id="status">Статус: микрофон выключен</div>
 
     <script>
         // Элементы интерфейса
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
-        const themeBtn = document.getElementById('themeBtn');
-        const streetModeBtn = document.getElementById('streetModeBtn');
-        const pocketModeBtn = document.getElementById('pocketModeBtn');
-        const aiToggleBtn = document.getElementById('aiToggleBtn');
-        const noiseFilterSlider = document.getElementById('noiseFilter');
-        const voiceBoostSlider = document.getElementById('voiceBoost');
-
+        const statusEl = document.getElementById('status');
+        
         // Аудио-переменные
         let audioContext;
         let microphone;
-        let noiseFilter;
-        let voiceBoost;
-        let dynamicsCompressor;
-        let gainNode;
         let isActive = false;
-        let isAIEnabled = false;
-        let noiseModel;
-        let audioStream;
 
-        // Инициализация ИИ-модели
-        async function initNoiseModel() {
+        // Включение микрофона (упрощённая версия без фильтров)
+        async function startMicrophone() {
             try {
-                noiseModel = await RNNoise.load();
-                console.log("ИИ-модель загружена!");
-            } catch (error) {
-                console.error("Ошибка загрузки ИИ:", error);
-            }
-        }
-
-        // Включение микрофона
-        async function initAudio() {
-            try {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)({
-                    latencyHint: 'interactive'
+                // Создаём аудиоконтекст
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // Получаем поток с микрофона (ВАЖНО: без обработки)
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: true 
                 });
-
-                // Создаем фильтры
-                noiseFilter = audioContext.createBiquadFilter();
-                noiseFilter.type = "highpass";
-                noiseFilter.frequency.value = 300;
-
-                voiceBoost = audioContext.createBiquadFilter();
-                voiceBoost.type = "peaking";
-                voiceBoost.frequency.value = 1500;
-                voiceBoost.gain.value = 10;
-
-                dynamicsCompressor = audioContext.createDynamicsCompressor();
-                dynamicsCompressor.threshold.value = -50;
-                dynamicsCompressor.ratio.value = 12;
-
-                gainNode = audioContext.createGain();
-
-                // Получаем поток микрофона
-                audioStream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: {
-                        echoCancellation: false,
-                        noiseSuppression: false,
-                        autoGainControl: false
-                    } 
-                });
-
-                // Подключаем цепочку
-                microphone = audioContext.createMediaStreamSource(audioStream);
-                updateAudioChain();
-
+                
+                // Подключаем микрофон напрямую к выходу
+                microphone = audioContext.createMediaStreamSource(stream);
+                microphone.connect(audioContext.destination);
+                
+                // Обновляем интерфейс
                 startBtn.disabled = true;
                 stopBtn.disabled = false;
+                statusEl.textContent = 'Статус: микрофон включен';
                 isActive = true;
-
-                // Загружаем ИИ после инициализации
-                await initNoiseModel();
+                
+                console.log("Звук должен идти в наушники!");
 
             } catch (error) {
-                console.error("Ошибка инициализации:", error);
+                statusEl.textContent = 'Ошибка: ' + error.message;
+                console.error("Ошибка микрофона:", error);
             }
         }
 
-        // Обновление аудио-цепочки
-        function updateAudioChain() {
-            if (!isActive) return;
-
-            microphone.disconnect();
-
-            let lastNode = microphone;
-
-            // Применяем ИИ-фильтр если включен
-            if (isAIEnabled && noiseModel) {
-                const processedStream = noiseModel.filter(audioStream);
-                lastNode = audioContext.createMediaStreamSource(processedStream);
-            }
-
-            lastNode.connect(noiseFilter)
-                  .connect(voiceBoost)
-                  .connect(dynamicsCompressor)
-                  .connect(gainNode)
-                  .connect(audioContext.destination);
-        }
-
-        // Режимы
-        function enableStreetMode() {
-            noiseFilter.frequency.value = 400;
-            voiceBoost.gain.value = 15;
-            dynamicsCompressor.ratio.value = 10;
-        }
-
-        function enablePocketMode() {
-            noiseFilter.frequency.value = 500;
-            voiceBoost.gain.value = 20;
-            dynamicsCompressor.ratio.value = 20;
-        }
-
-        // События
-        startBtn.addEventListener('click', initAudio);
-        
-        stopBtn.addEventListener('click', () => {
-            if (isActive) {
+        // Выключение микрофона
+        function stopMicrophone() {
+            if (microphone) {
                 microphone.disconnect();
-                audioContext.close();
+                if (audioContext.state !== 'closed') {
+                    audioContext.close();
+                }
                 startBtn.disabled = false;
                 stopBtn.disabled = true;
+                statusEl.textContent = 'Статус: микрофон выключен';
                 isActive = false;
             }
-        });
+        }
 
-        streetModeBtn.addEventListener('click', () => {
-            enableStreetMode();
-            streetModeBtn.classList.toggle('active');
-        });
+        // Кнопки
+        startBtn.addEventListener('click', startMicrophone);
+        stopBtn.addEventListener('click', stopMicrophone);
 
-        pocketModeBtn.addEventListener('click', () => {
-            enablePocketMode();
-            pocketModeBtn.classList.toggle('active');
-        });
-
-        aiToggleBtn.addEventListener('click', () => {
-            isAIEnabled = !isAIEnabled;
-            aiToggleBtn.textContent = `🤖 ИИ-фильтр: ${isAIEnabled ? 'ВКЛ' : 'ВЫКЛ'}`;
-            aiToggleBtn.classList.toggle('active');
-            updateAudioChain();
-        });
-
-        noiseFilterSlider.addEventListener('input', (e) => {
-            noiseFilter.frequency.value = 100 + (e.target.value * 5);
-        });
-
-        voiceBoostSlider.addEventListener('input', (e) => {
-            voiceBoost.gain.value = e.target.value / 3;
-        });
-
-        themeBtn.addEventListener('click', () => {
-            document.body.classList.toggle('dark-mode');
-            themeBtn.textContent = document.body.classList.contains('dark-mode') 
-                ? '☀️ Светлая тема' 
-                : '🌙 Тёмная тема';
-        });
-
-        // Автовосстановление
-        document.addEventListener('visibilitychange', async () => {
-            if (audioContext?.state === 'suspended') {
-                await audioContext.resume();
-            }
-        });
+        // Автовыключение
+        window.addEventListener('beforeunload', stopMicrophone);
     </script>
 </body>
-                </html>
+</html>
