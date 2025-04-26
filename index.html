@@ -116,10 +116,12 @@
         // Инициализация аудио
         async function initAudio() {
             try {
+                // Создаём аудиоконтекст
                 audioContext = new (window.AudioContext || window.webkitAudioContext)({
                     latencyHint: 'interactive'
                 });
                 
+                // Получаем поток с микрофона
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     audio: {
                         echoCancellation: false,
@@ -130,12 +132,18 @@
                 
                 microphone = audioContext.createMediaStreamSource(stream);
                 gainNode = audioContext.createGain();
+                gainNode.gain.value = rangeSlider.value / 50;
                 
-                // Создаем фильтры (пока как заглушки)
+                // Инициализируем фильтры СРАЗУ с настройками по умолчанию
                 windFilter = audioContext.createBiquadFilter();
-                whisperFilter = audioContext.createGain();
+                windFilter.type = "highpass";
+                windFilter.frequency.value = 500;
+                windFilter.Q.value = 1.0;
                 
-                // Начальные настройки
+                whisperFilter = audioContext.createGain();
+                whisperFilter.gain.value = 1.0; // Нейтральное значение
+                
+                // Первое подключение
                 updateAudioChain();
                 
                 startBtn.disabled = true;
@@ -143,8 +151,10 @@
                 statusEl.textContent = 'Статус: микрофон включен';
                 isActive = true;
                 
+                console.log("Аудиоцепь инициализирована!");
+                
             } catch (error) {
-                console.error("Ошибка:", error);
+                console.error("Ошибка инициализации:", error);
                 statusEl.textContent = 'Ошибка: ' + error.message;
             }
         }
@@ -156,26 +166,26 @@
             // Отключаем все соединения
             microphone.disconnect();
             
-            // Собираем цепочку заново
+            // Если все фильтры выключены - прямой путь для минимальной задержки
+            if (!isWindReductionOn && !isWhisperOn) {
+                microphone.connect(gainNode).connect(audioContext.destination);
+                return;
+            }
+            
+            // Собираем цепочку с активными фильтрами
             let lastNode = microphone;
             
             if (isWindReductionOn) {
-                windFilter.type = "highpass";
-                windFilter.frequency.value = 500;
                 lastNode.connect(windFilter);
                 lastNode = windFilter;
             }
             
             if (isWhisperOn) {
-                whisperFilter.gain.value = 2.0;
                 lastNode.connect(whisperFilter);
                 lastNode = whisperFilter;
             }
             
-            // Применяем дальность (упрощённо)
-            gainNode.gain.value = rangeSlider.value / 50;
-            lastNode.connect(gainNode);
-            gainNode.connect(audioContext.destination);
+            lastNode.connect(gainNode).connect(audioContext.destination);
         }
 
         // Тёмная тема
@@ -213,13 +223,16 @@
             isWhisperOn = !isWhisperOn;
             whisperBtn.textContent = `🔇 Шёпот: ${isWhisperOn ? 'ВКЛ' : 'ВЫКЛ'}`;
             whisperBtn.classList.toggle('active', isWhisperOn);
+            
+            // Устанавливаем усиление
+            whisperFilter.gain.value = isWhisperOn ? 2.0 : 1.0;
             updateAudioChain();
         });
 
         // Дальность
         rangeSlider.addEventListener('input', () => {
             rangeValue.textContent = `${rangeSlider.value}%`;
-            updateAudioChain();
+            gainNode.gain.value = rangeSlider.value / 50;
         });
 
         // Автовыключение
@@ -228,6 +241,13 @@
                 microphone.disconnect();
             }
         });
+
+        // Автовосстановление при паузе
+        document.addEventListener('click', async () => {
+            if (audioContext?.state === 'suspended') {
+                await audioContext.resume();
+            }
+        }, { once: true });
     </script>
 </body>
-</html>
+    </html>
