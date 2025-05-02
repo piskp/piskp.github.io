@@ -1,105 +1,23 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Voice Monitor</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            text-align: center;
-        }
-        button {
-            background-color: #4CAF50;
-            border: none;
-            color: white;
-            padding: 15px 32px;
-            text-align: center;
-            text-decoration: none;
-            display: inline-block;
-            font-size: 16px;
-            margin: 20px 0;
-            cursor: pointer;
-            border-radius: 8px;
-        }
-        .status {
-            margin: 20px;
-            padding: 10px;
-            border-radius: 5px;
-        }
-        .active {
-            background-color: #d4edda;
-            color: #155724;
-        }
-        .inactive {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
-    </style>
-</head>
-<body>
-    <h1>Live Voice Monitor</h1>
-    <p>Слышите свой голос в реальном времени для тренировки дикции</p>
-    
-    <div id="status" class="status inactive">
-        Микрофон отключен
-    </div>
-    
-    <button id="toggleBtn">Включить мониторинг</button>
-    
-    <div>
-        <label for="volume">Громкость: </label>
-        <input type="range" id="volume" min="0" max="2" step="0.1" value="1">
-    </div>
+let audioContext;
+let microphone;
 
-    <script>
-        const toggleBtn = document.getElementById('toggleBtn');
-        const statusDiv = document.getElementById('status');
-        const volumeControl = document.getElementById('volume');
-        let audioContext;
-        let microphone;
-        let isMonitoring = false;
+async function toggleMonitoring() {
+  if (!audioContext) {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  }
 
-        toggleBtn.addEventListener('click', async () => {
-            if (!isMonitoring) {
-                try {
-                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    microphone = audioContext.createMediaStreamSource(stream);
-                    
-                    const gainNode = audioContext.createGain();
-                    gainNode.gain.value = volumeControl.value;
-                    
-                    microphone.connect(gainNode);
-                    gainNode.connect(audioContext.destination);
-                    
-                    isMonitoring = true;
-                    statusDiv.textContent = "Мониторинг активен";
-                    statusDiv.className = "status active";
-                    toggleBtn.textContent = "Выключить мониторинг";
-                    
-                    volumeControl.addEventListener('input', () => {
-                        gainNode.gain.value = volumeControl.value;
-                    });
-                    
-                } catch (error) {
-                    console.error("Ошибка:", error);
-                    statusDiv.textContent = "Ошибка: " + error.message;
-                    statusDiv.className = "status inactive";
-                }
-            } else {
-                if (microphone) {
-                    microphone.disconnect();
-                }
-                isMonitoring = false;
-                statusDiv.textContent = "Микрофон отключен";
-                statusDiv.className = "status inactive";
-                toggleBtn.textContent = "Включить мониторинг";
-            }
-        });
-    </script>
-</body>
-</html>
+  if (!microphone) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      microphone = audioContext.createMediaStreamSource(stream);
+      microphone.connect(audioContext.destination);
+      console.log("Микрофон активирован!");
+    } catch (err) {
+      console.error("Ошибка микрофона:", err);
+    }
+  } else {
+    microphone.disconnect();
+    microphone = null;
+    console.log("Микрофон отключен");
+  }
+}
