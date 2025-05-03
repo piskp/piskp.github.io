@@ -412,7 +412,7 @@
             if (!isActive) return;
             
             audioChunks = [];
-            mediaRecorder.start(100); // Записываем кусочки по 100мс
+            mediaRecorder.start(300); // Записываем кусочки по 300мс
             isRecording = true;
             recordBtn.classList.add('recording');
             micIndicator.classList.replace('indicator-on', 'indicator-record');
