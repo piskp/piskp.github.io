@@ -17,6 +17,7 @@
             --active-color: #00ff00;
             --mic-off: #ff4444;
             --mic-on: #00c851;
+            --record-color: #ff4444;
         }
         .dark-mode {
             --bg-color: #121212;
@@ -24,6 +25,7 @@
             --panel-color: #1e1e1e;
             --button-color: #bb86fc;
             --active-color: #03dac6;
+            --record-color: #cf6679;
         }
         body {
             background-color: var(--bg-color);
@@ -64,6 +66,10 @@
         #stopBtn {
             background-color: var(--mic-off);
         }
+        #recordBtn.recording {
+            background-color: var(--record-color);
+            animation: pulse 1.5s infinite;
+        }
         .slider-container {
             margin: 15px 0;
         }
@@ -92,6 +98,10 @@
             background-color: var(--mic-off);
             color: white;
         }
+        .status-record {
+            background-color: var(--record-color);
+            color: white;
+        }
         .indicator {
             display: inline-block;
             width: 15px;
@@ -106,15 +116,39 @@
         .indicator-off {
             background-color: var(--mic-off);
         }
+        .indicator-record {
+            background-color: var(--record-color);
+            box-shadow: 0 0 10px var(--record-color);
+        }
+        .recordings-list {
+            margin-top: 20px;
+        }
+        .recording-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        .recording-item audio {
+            flex-grow: 1;
+            margin-right: 10px;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
     </style>
 </head>
 <body>
     <div class="panel">
         <h1>Pisk Pro 🎧</h1>
-        <p>Аудиомониторинг с ИИ-фильтрами</p>
+        <p>Аудиомониторинг с ИИ-фильтрами и записью</p>
         
         <button id="startBtn">🎤 <span class="indicator indicator-off"></span>Включить микрофон</button>
         <button id="stopBtn" disabled>🔴 Выключить</button>
+        <button id="recordBtn">● Запись</button>
         <div class="status status-off" id="status">Микрофон выключен</div>
     </div>
 
@@ -138,12 +172,18 @@
         </div>
     </div>
 
+    <div class="panel recordings-panel" id="recordingsPanel" style="display: none;">
+        <h2>Записи</h2>
+        <div class="recordings-list" id="recordingsList"></div>
+    </div>
+
     <button id="themeBtn">🌙 Тёмная тема</button>
 
     <script>
         // Элементы интерфейса
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
+        const recordBtn = document.getElementById('recordBtn');
         const streetModeBtn = document.getElementById('streetModeBtn');
         const pocketModeBtn = document.getElementById('pocketModeBtn');
         const whisperBtn = document.getElementById('whisperBtn');
@@ -155,6 +195,8 @@
         const themeBtn = document.getElementById('themeBtn');
         const statusEl = document.getElementById('status');
         const micIndicator = document.querySelector('.indicator');
+        const recordingsPanel = document.getElementById('recordingsPanel');
+        const recordingsList = document.getElementById('recordingsList');
 
         // Аудио-переменные
         let audioContext;
@@ -171,6 +213,12 @@
         let isAIEnabled = false;
         let noiseModel;
         let audioStream;
+        
+        // Переменные для записи
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+        let recordedAudioURLs = [];
 
         // Инициализация ИИ-модели
         async function initNoiseModel() {
@@ -224,9 +272,14 @@
                 microphone = audioContext.createMediaStreamSource(audioStream);
                 updateAudioChain();
 
+                // Инициализация MediaRecorder для записи
+                mediaRecorder = new MediaRecorder(audioStream);
+                setupMediaRecorder();
+
                 // Обновляем интерфейс
                 startBtn.classList.add('active');
                 stopBtn.disabled = false;
+                recordBtn.disabled = false;
                 micIndicator.classList.replace('indicator-off', 'indicator-on');
                 statusEl.textContent = 'Микрофон включен';
                 statusEl.className = 'status status-on';
@@ -239,6 +292,49 @@
                 statusEl.textContent = 'Ошибка: ' + error.message;
                 console.error("Ошибка микрофона:", error);
             }
+        }
+
+        // Настройка MediaRecorder
+        function setupMediaRecorder() {
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    audioChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                const audioURL = URL.createObjectURL(audioBlob);
+                addRecordingToList(audioURL);
+                audioChunks = [];
+            };
+        }
+
+        // Добавление записи в список
+        function addRecordingToList(audioURL) {
+            recordingsPanel.style.display = 'block';
+            
+            const recordingItem = document.createElement('div');
+            recordingItem.className = 'recording-item';
+            
+            const audioElement = document.createElement('audio');
+            audioElement.controls = true;
+            audioElement.src = audioURL;
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.textContent = '❌';
+            deleteBtn.style.width = 'auto';
+            deleteBtn.style.padding = '5px 10px';
+            deleteBtn.onclick = () => {
+                recordingItem.remove();
+                if (recordingsList.children.length === 0) {
+                    recordingsPanel.style.display = 'none';
+                }
+            };
+            
+            recordingItem.appendChild(audioElement);
+            recordingItem.appendChild(deleteBtn);
+            recordingsList.appendChild(recordingItem);
         }
 
         // Обновление аудио-цепочки
@@ -289,16 +385,51 @@
         
         stopBtn.addEventListener('click', () => {
             if (isActive) {
+                if (isRecording) {
+                    stopRecording();
+                }
                 microphone.disconnect();
                 audioContext.close();
                 startBtn.classList.remove('active');
                 stopBtn.disabled = true;
+                recordBtn.disabled = true;
                 micIndicator.classList.replace('indicator-on', 'indicator-off');
                 statusEl.textContent = 'Микрофон выключен';
                 statusEl.className = 'status status-off';
                 isActive = false;
             }
         });
+
+        recordBtn.addEventListener('click', () => {
+            if (!isRecording) {
+                startRecording();
+            } else {
+                stopRecording();
+            }
+        });
+
+        function startRecording() {
+            if (!isActive) return;
+            
+            audioChunks = [];
+            mediaRecorder.start(100); // Записываем кусочки по 100мс
+            isRecording = true;
+            recordBtn.classList.add('recording');
+            micIndicator.classList.replace('indicator-on', 'indicator-record');
+            statusEl.textContent = 'Запись...';
+            statusEl.className = 'status status-record';
+        }
+
+        function stopRecording() {
+            if (!isRecording) return;
+            
+            mediaRecorder.stop();
+            isRecording = false;
+            recordBtn.classList.remove('recording');
+            micIndicator.classList.replace('indicator-record', 'indicator-on');
+            statusEl.textContent = 'Микрофон включен';
+            statusEl.className = 'status status-on';
+        }
 
         streetModeBtn.addEventListener('click', () => {
             isStreetMode = !isStreetMode;
@@ -366,4 +497,4 @@
         }, 20000);
     </script>
 </body>
-    </html>
+            </html>
