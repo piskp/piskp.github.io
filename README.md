@@ -4,8 +4,6 @@
 
 [Pisk] (https://piskp.github.io/index.html)
 
-[Дикция] (https://piskp.github.io/diction.html)** 
-
 ## 🔥 Особенности
 - 🎤 Захват звука с микрофона через браузер
 - 🔊 Регулировка громкости в реальном времени
