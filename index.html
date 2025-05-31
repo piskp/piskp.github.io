@@ -3,10 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pisk Pro 🎧</title>
-    <!-- ИИ-библиотеки -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0"></script>
-    <script src="https://cdn.jsdelivr.net/npm/rnnoise-wasm@0.1.0/dist/rnnoise.min.js"></script>
+    <title>Слуховой аппарат для Redmi</title>
     <style>
         :root {
             --bg-color: #f5f5f5;
@@ -17,7 +14,6 @@
             --active-color: #00ff00;
             --mic-off: #ff4444;
             --mic-on: #00c851;
-            --record-color: #ff4444;
         }
         .dark-mode {
             --bg-color: #121212;
@@ -25,7 +21,6 @@
             --panel-color: #1e1e1e;
             --button-color: #bb86fc;
             --active-color: #03dac6;
-            --record-color: #cf6679;
         }
         body {
             background-color: var(--bg-color);
@@ -66,10 +61,6 @@
         #stopBtn {
             background-color: var(--mic-off);
         }
-        #recordBtn.recording {
-            background-color: var(--record-color);
-            animation: pulse 1.5s infinite;
-        }
         .slider-container {
             margin: 15px 0;
         }
@@ -98,10 +89,6 @@
             background-color: var(--mic-off);
             color: white;
         }
-        .status-record {
-            background-color: var(--record-color);
-            color: white;
-        }
         .indicator {
             display: inline-block;
             width: 15px;
@@ -116,65 +103,45 @@
         .indicator-off {
             background-color: var(--mic-off);
         }
-        .indicator-record {
-            background-color: var(--record-color);
-            box-shadow: 0 0 10px var(--record-color);
-        }
-        .recordings-list {
-            margin-top: 20px;
-        }
-        .recording-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px;
-            border-bottom: 1px solid #ddd;
-        }
-        .recording-item audio {
-            flex-grow: 1;
-            margin-right: 10px;
-        }
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.7; }
-            100% { opacity: 1; }
+        .warning {
+            color: #ff4444;
+            font-size: 14px;
+            margin-top: 10px;
         }
     </style>
 </head>
 <body>
     <div class="panel">
-        <h1>Pisk Pro 🎧</h1>
-        <p>Аудиомониторинг с ИИ-фильтрами и записью</p>
+        <h1>Слуховой аппарат 👂</h1>
+        <p>Версия для Redmi/Xiaomi</p>
+        <p class="warning">⚠️ Для работы разрешите микрофон в браузере!</p>
         
         <button id="startBtn">🎤 <span class="indicator indicator-off"></span>Включить микрофон</button>
         <button id="stopBtn" disabled>🔴 Выключить</button>
-        <button id="recordBtn">● Запись</button>
         <div class="status status-off" id="status">Микрофон выключен</div>
     </div>
 
     <div class="panel">
-        <h2>Режимы</h2>
-        <button id="streetModeBtn">🌆 Уличный режим</button>
-        <button id="pocketModeBtn">👖 Режим кармана</button>
-        <button id="whisperBtn">🔇 Режим шёпота</button>
-        <button id="aiToggleBtn">🤖 ИИ-фильтр</button>
+        <h2>Настройки звука</h2>
+        <div class="slider-container">
+            <label for="volumeSlider">Громкость: <span id="volumeValue">100%</span></label>
+            <input type="range" id="volumeSlider" min="50" max="300" value="100">
+        </div>
+        <div class="slider-container">
+            <label for="bassSlider">Низкие частоты: <span id="bassValue">50%</span></label>
+            <input type="range" id="bassSlider" min="0" max="100" value="50">
+        </div>
+        <div class="slider-container">
+            <label for="trebleSlider">Высокие частоты: <span id="trebleValue">50%</span></label>
+            <input type="range" id="trebleSlider" min="0" max="100" value="50">
+        </div>
     </div>
 
     <div class="panel">
-        <h2>Настройки</h2>
-        <div class="slider-container">
-            <label for="rangeSlider">Дальность: <span id="rangeValue">50%</span></label>
-            <input type="range" id="rangeSlider" min="10" max="200" value="100">
-        </div>
-        <div class="slider-container">
-            <label for="noiseFilter">Подавление шума: <span id="noiseFilterValue">50%</span></label>
-            <input type="range" id="noiseFilter" min="0" max="100" value="50">
-        </div>
-    </div>
-
-    <div class="panel recordings-panel" id="recordingsPanel" style="display: none;">
-        <h2>Записи</h2>
-        <div class="recordings-list" id="recordingsList"></div>
+        <h2>Режимы</h2>
+        <button id="clearModeBtn">🗣️ Режим речи</button>
+        <button id="noiseModeBtn">🌆 Шумный режим</button>
+        <button id="boostModeBtn">🔊 Усиление +</button>
     </div>
 
     <button id="themeBtn">🌙 Тёмная тема</button>
@@ -183,110 +150,105 @@
         // Элементы интерфейса
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
-        const recordBtn = document.getElementById('recordBtn');
-        const streetModeBtn = document.getElementById('streetModeBtn');
-        const pocketModeBtn = document.getElementById('pocketModeBtn');
-        const whisperBtn = document.getElementById('whisperBtn');
-        const aiToggleBtn = document.getElementById('aiToggleBtn');
-        const rangeSlider = document.getElementById('rangeSlider');
-        const rangeValue = document.getElementById('rangeValue');
-        const noiseFilterSlider = document.getElementById('noiseFilter');
-        const noiseFilterValue = document.getElementById('noiseFilterValue');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const volumeValue = document.getElementById('volumeValue');
+        const bassSlider = document.getElementById('bassSlider');
+        const bassValue = document.getElementById('bassValue');
+        const trebleSlider = document.getElementById('trebleSlider');
+        const trebleValue = document.getElementById('trebleValue');
+        const clearModeBtn = document.getElementById('clearModeBtn');
+        const noiseModeBtn = document.getElementById('noiseModeBtn');
+        const boostModeBtn = document.getElementById('boostModeBtn');
         const themeBtn = document.getElementById('themeBtn');
         const statusEl = document.getElementById('status');
         const micIndicator = document.querySelector('.indicator');
-        const recordingsPanel = document.getElementById('recordingsPanel');
-        const recordingsList = document.getElementById('recordingsList');
 
         // Аудио-переменные
         let audioContext;
         let microphone;
-        let noiseFilter;
-        let voiceBoost;
-        let whisperFilter;
-        let compressor;
-        let gainNode;
-        let isActive = false;
-        let isStreetMode = false;
-        let isPocketMode = false;
-        let isWhisperOn = false;
-        let isAIEnabled = false;
-        let noiseModel;
         let audioStream;
-        
-        // Переменные для записи
-        let mediaRecorder;
-        let audioChunks = [];
-        let isRecording = false;
-        let recordedAudioURLs = [];
+        let gainNode;
+        let bassBoost;
+        let trebleBoost;
+        let compressor;
+        let isActive = false;
+        let currentMode = 'clear';
 
-        // Инициализация ИИ-модели
-        async function initNoiseModel() {
-            try {
-                noiseModel = await RNNoise.load();
-                console.log("ИИ-модель загружена!");
-            } catch (error) {
-                console.error("Ошибка загрузки ИИ:", error);
-            }
-        }
+        // Настройки для Redmi
+        const isRedmi = /Redmi|Xiaomi/i.test(navigator.userAgent);
+        const baseGain = isRedmi ? 2.0 : 1.0; // Усиление для Redmi
 
-        // Включение микрофона
+        // Включение микрофона (оптимизировано для Redmi)
         async function startMicrophone() {
             try {
-                // Создаём аудиоконтекст
+                statusEl.textContent = 'Запуск...';
+                
+                // Создаём аудиоконтекст с улучшенными параметрами
                 audioContext = new (window.AudioContext || window.webkitAudioContext)({
-                    latencyHint: 'interactive'
+                    latencyHint: 'interactive',
+                    sampleRate: 44100
                 });
 
-                // Получаем поток с микрофона
-                audioStream = await navigator.mediaDevices.getUserMedia({ 
+                // Особые настройки для Redmi
+                const constraints = {
                     audio: {
                         echoCancellation: false,
                         noiseSuppression: false,
-                        autoGainControl: false,
-                        channelCount: 1
-                    } 
-                });
+                        autoGainControl: isRedmi, // Включено только для Redmi
+                        channelCount: 1,
+                        sampleSize: 16,
+                        sampleRate: 44100
+                    }
+                };
 
-                // Создаем фильтры
-                noiseFilter = audioContext.createBiquadFilter();
-                noiseFilter.type = "highpass";
-                noiseFilter.frequency.value = 300;
+                // Задержка для инициализации на Redmi
+                await new Promise(resolve => setTimeout(resolve, isRedmi ? 500 : 100));
+                
+                audioStream = await navigator.mediaDevices.getUserMedia(constraints)
+                    .catch(async err => {
+                        // Fallback для Redmi
+                        constraints.audio.autoGainControl = false;
+                        return navigator.mediaDevices.getUserMedia(constraints);
+                    });
 
-                voiceBoost = audioContext.createBiquadFilter();
-                voiceBoost.type = "peaking";
-                voiceBoost.frequency.value = 1500;
-                voiceBoost.gain.value = 10;
-                voiceBoost.Q.value = 1;
-
-                whisperFilter = audioContext.createGain();
-                whisperFilter.gain.value = 1.0;
-
-                compressor = audioContext.createDynamicsCompressor();
-                compressor.threshold.value = -50;
-                compressor.ratio.value = 12;
-
-                gainNode = audioContext.createGain();
-                gainNode.gain.value = rangeSlider.value / 100;
-
+                // Создаем узлы обработки звука
                 microphone = audioContext.createMediaStreamSource(audioStream);
+                
+                gainNode = audioContext.createGain();
+                gainNode.gain.value = baseGain * (volumeSlider.value / 100);
+                
+                // Фильтры частот
+                bassBoost = audioContext.createBiquadFilter();
+                bassBoost.type = "lowshelf";
+                bassBoost.frequency.value = 250;
+                bassBoost.gain.value = bassSlider.value - 50;
+                
+                trebleBoost = audioContext.createBiquadFilter();
+                trebleBoost.type = "highshelf";
+                trebleBoost.frequency.value = 4000;
+                trebleBoost.gain.value = trebleSlider.value - 50;
+                
+                // Компрессор для Redmi
+                compressor = audioContext.createDynamicsCompressor();
+                compressor.threshold.value = isRedmi ? -30 : -50;
+                compressor.ratio.value = isRedmi ? 10 : 4;
+                compressor.knee.value = 10;
+                compressor.attack.value = 0.01;
+                compressor.release.value = 0.25;
+                
+                // Собираем цепочку обработки
                 updateAudioChain();
-
-                // Инициализация MediaRecorder для записи
-                mediaRecorder = new MediaRecorder(audioStream);
-                setupMediaRecorder();
-
+                
                 // Обновляем интерфейс
                 startBtn.classList.add('active');
                 stopBtn.disabled = false;
-                recordBtn.disabled = false;
                 micIndicator.classList.replace('indicator-off', 'indicator-on');
                 statusEl.textContent = 'Микрофон включен';
                 statusEl.className = 'status status-on';
                 isActive = true;
-
-                // Загружаем ИИ
-                await initNoiseModel();
+                
+                // Автоматический режим для Redmi
+                if(isRedmi) setBoostMode();
 
             } catch (error) {
                 statusEl.textContent = 'Ошибка: ' + error.message;
@@ -294,90 +256,44 @@
             }
         }
 
-        // Настройка MediaRecorder
-        function setupMediaRecorder() {
-            mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    audioChunks.push(event.data);
-                }
-            };
-
-            mediaRecorder.onstop = () => {
-                const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                const audioURL = URL.createObjectURL(audioBlob);
-                addRecordingToList(audioURL);
-                audioChunks = [];
-            };
-        }
-
-        // Добавление записи в список
-        function addRecordingToList(audioURL) {
-            recordingsPanel.style.display = 'block';
-            
-            const recordingItem = document.createElement('div');
-            recordingItem.className = 'recording-item';
-            
-            const audioElement = document.createElement('audio');
-            audioElement.controls = true;
-            audioElement.src = audioURL;
-            
-            const deleteBtn = document.createElement('button');
-            deleteBtn.textContent = '❌';
-            deleteBtn.style.width = 'auto';
-            deleteBtn.style.padding = '5px 10px';
-            deleteBtn.onclick = () => {
-                recordingItem.remove();
-                if (recordingsList.children.length === 0) {
-                    recordingsPanel.style.display = 'none';
-                }
-            };
-            
-            recordingItem.appendChild(audioElement);
-            recordingItem.appendChild(deleteBtn);
-            recordingsList.appendChild(recordingItem);
-        }
-
         // Обновление аудио-цепочки
         function updateAudioChain() {
             if (!isActive) return;
-
+            
             microphone.disconnect();
-
-            let source = microphone;
-
-            // Применяем ИИ-фильтр если включен
-            if (isAIEnabled && noiseModel) {
-                const processedStream = noiseModel.filter(audioStream);
-                source = audioContext.createMediaStreamSource(processedStream);
-            }
-
-            // Подключаем все фильтры
-            source.connect(noiseFilter)
-                 .connect(voiceBoost)
-                 .connect(whisperFilter)
-                 .connect(compressor)
-                 .connect(gainNode)
-                 .connect(audioContext.destination);
+            
+            // Базовая цепочка для Redmi
+            microphone.connect(bassBoost)
+                     .connect(trebleBoost)
+                     .connect(compressor)
+                     .connect(gainNode)
+                     .connect(audioContext.destination);
         }
 
-        // Режимы
-        function setStreetMode() {
-            noiseFilter.frequency.value = 400;
-            voiceBoost.gain.value = 15;
+        // Режимы работы
+        function setClearMode() {
+            bassBoost.gain.value = 0;
+            trebleBoost.gain.value = 5;
+            compressor.ratio.value = 4;
+            currentMode = 'clear';
+            statusEl.textContent = 'Режим: Чистая речь';
+        }
+
+        function setNoiseMode() {
+            bassBoost.gain.value = -10;
+            trebleBoost.gain.value = 10;
             compressor.ratio.value = 10;
-            statusEl.textContent = 'Режим: улица (шум машин подавлен)';
+            currentMode = 'noise';
+            statusEl.textContent = 'Режим: Шумные помещения';
         }
 
-        function setPocketMode() {
-            noiseFilter.frequency.value = 500;
-            voiceBoost.gain.value = 20;
-            compressor.ratio.value = 20;
-            statusEl.textContent = 'Режим: карман (шуршание убрано)';
-        }
-
-        function setWhisperMode() {
-            whisperFilter.gain.value = isWhisperOn ? 2.0 : 1.0;
-            statusEl.textContent = isWhisperOn ? 'Режим шёпота: ВКЛ' : 'Режим шёпота: ВЫКЛ';
+        function setBoostMode() {
+            bassBoost.gain.value = 5;
+            trebleBoost.gain.value = 15;
+            compressor.ratio.value = 8;
+            gainNode.gain.value = baseGain * (volumeSlider.value / 100) * 1.5;
+            currentMode = 'boost';
+            statusEl.textContent = 'Режим: Макс. усиление';
         }
 
         // События
@@ -385,14 +301,12 @@
         
         stopBtn.addEventListener('click', () => {
             if (isActive) {
-                if (isRecording) {
-                    stopRecording();
-                }
                 microphone.disconnect();
-                audioContext.close();
+                audioStream.getTracks().forEach(track => track.stop());
+                if (audioContext) audioContext.close();
+                
                 startBtn.classList.remove('active');
                 stopBtn.disabled = true;
-                recordBtn.disabled = true;
                 micIndicator.classList.replace('indicator-on', 'indicator-off');
                 statusEl.textContent = 'Микрофон выключен';
                 statusEl.className = 'status status-off';
@@ -400,79 +314,48 @@
             }
         });
 
-        recordBtn.addEventListener('click', () => {
-            if (!isRecording) {
-                startRecording();
-            } else {
-                stopRecording();
+        // Обработчики слайдеров
+        volumeSlider.addEventListener('input', (e) => {
+            const value = e.target.value;
+            volumeValue.textContent = `${value}%`;
+            if(gainNode) {
+                const boost = currentMode === 'boost' ? 1.5 : 1.0;
+                gainNode.gain.value = baseGain * (value / 100) * boost;
             }
         });
 
-        function startRecording() {
-            if (!isActive) return;
-            
-            audioChunks = [];
-            mediaRecorder.start(300); // Записываем кусочки по 300мс
-            isRecording = true;
-            recordBtn.classList.add('recording');
-            micIndicator.classList.replace('indicator-on', 'indicator-record');
-            statusEl.textContent = 'Запись...';
-            statusEl.className = 'status status-record';
-        }
-
-        function stopRecording() {
-            if (!isRecording) return;
-            
-            mediaRecorder.stop();
-            isRecording = false;
-            recordBtn.classList.remove('recording');
-            micIndicator.classList.replace('indicator-record', 'indicator-on');
-            statusEl.textContent = 'Микрофон включен';
-            statusEl.className = 'status status-on';
-        }
-
-        streetModeBtn.addEventListener('click', () => {
-            isStreetMode = !isStreetMode;
-            isPocketMode = false;
-            streetModeBtn.classList.toggle('active-mode');
-            pocketModeBtn.classList.remove('active-mode');
-            if (isStreetMode) setStreetMode();
-            updateAudioChain();
-        });
-
-        pocketModeBtn.addEventListener('click', () => {
-            isPocketMode = !isPocketMode;
-            isStreetMode = false;
-            pocketModeBtn.classList.toggle('active-mode');
-            streetModeBtn.classList.remove('active-mode');
-            if (isPocketMode) setPocketMode();
-            updateAudioChain();
-        });
-
-        whisperBtn.addEventListener('click', () => {
-            isWhisperOn = !isWhisperOn;
-            whisperBtn.classList.toggle('active-mode');
-            setWhisperMode();
-            updateAudioChain();
-        });
-
-        aiToggleBtn.addEventListener('click', () => {
-            isAIEnabled = !isAIEnabled;
-            aiToggleBtn.classList.toggle('active-mode');
-            statusEl.textContent = isAIEnabled ? 'ИИ-фильтр: ВКЛ' : 'ИИ-фильтр: ВЫКЛ';
-            updateAudioChain();
-        });
-
-        rangeSlider.addEventListener('input', (e) => {
+        bassSlider.addEventListener('input', (e) => {
             const value = e.target.value;
-            rangeValue.textContent = `${value}%`;
-            gainNode.gain.value = value / 100;
+            bassValue.textContent = `${value}%`;
+            if(bassBoost) bassBoost.gain.value = value - 50;
         });
 
-        noiseFilterSlider.addEventListener('input', (e) => {
+        trebleSlider.addEventListener('input', (e) => {
             const value = e.target.value;
-            noiseFilterValue.textContent = `${value}%`;
-            noiseFilter.frequency.value = 100 + (value * 5);
+            trebleValue.textContent = `${value}%`;
+            if(trebleBoost) trebleBoost.gain.value = value - 50;
+        });
+
+        // Обработчики режимов
+        clearModeBtn.addEventListener('click', () => {
+            clearModeBtn.classList.add('active-mode');
+            noiseModeBtn.classList.remove('active-mode');
+            boostModeBtn.classList.remove('active-mode');
+            setClearMode();
+        });
+
+        noiseModeBtn.addEventListener('click', () => {
+            noiseModeBtn.classList.add('active-mode');
+            clearModeBtn.classList.remove('active-mode');
+            boostModeBtn.classList.remove('active-mode');
+            setNoiseMode();
+        });
+
+        boostModeBtn.addEventListener('click', () => {
+            boostModeBtn.classList.add('active-mode');
+            clearModeBtn.classList.remove('active-mode');
+            noiseModeBtn.classList.remove('active-mode');
+            setBoostMode();
         });
 
         themeBtn.addEventListener('click', () => {
@@ -482,19 +365,18 @@
                 : '🌙 Тёмная тема';
         });
 
-        // Автовосстановление
+        // Автовосстановление для Redmi
         document.addEventListener('visibilitychange', async () => {
             if (isActive && audioContext?.state === 'suspended') {
                 await audioContext.resume();
+                if(isRedmi) updateAudioChain();
             }
         });
 
-        // Периодическая проверка
-        setInterval(async () => {
-            if (isActive && audioContext?.state !== 'running') {
-                await audioContext.resume();
-            }
-        }, 20000);
+        // Инициализация
+        if(isRedmi) {
+            statusEl.innerHTML += '<br><small>Обнаружен телефон Redmi/Xiaomi</small>';
+        }
     </script>
 </body>
-            </html>
+</html>
