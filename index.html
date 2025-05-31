@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Простой слуховой аппарат</title>
+    <title>Усилитель окружающих звуков</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             max-width: 600px;
             margin: 0 auto;
             padding: 20px;
-            background: #f5f5f5;
+            background: #f0f0f0;
         }
         .panel {
             background: white;
@@ -20,7 +20,7 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
         button {
-            background: #6200ee;
+            background: #4CAF50;
             color: white;
             border: none;
             padding: 15px;
@@ -29,12 +29,16 @@
             font-size: 18px;
             margin: 5px 0;
             cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:active {
+            transform: scale(0.98);
         }
         #startBtn.active {
-            background: #00c851;
+            background: #2E7D32;
         }
         #stopBtn {
-            background: #ff4444;
+            background: #f44336;
         }
         .slider-container {
             margin: 20px 0;
@@ -44,32 +48,40 @@
             text-align: center;
             border-radius: 5px;
             margin: 10px 0;
+            font-weight: bold;
         }
         .status-on {
-            background: #00c851;
+            background: #2E7D32;
             color: white;
         }
         .status-off {
-            background: #ff4444;
+            background: #f44336;
             color: white;
+        }
+        input[type="range"] {
+            width: 100%;
         }
     </style>
 </head>
 <body>
     <div class="panel">
-        <h1>Простой слуховой аппарат</h1>
-        <p>Базовая версия для Redmi/Xiaomi</p>
+        <h1>🔊 Усилитель окружающих звуков</h1>
+        <p>Слышите всё вокруг чётко и громко</p>
         
         <button id="startBtn">🎤 Включить микрофон</button>
-        <button id="stopBtn" disabled>🔴 Выключить</button>
+        <button id="stopBtn" disabled>⏹️ Выключить</button>
         <div class="status status-off" id="status">Микрофон выключен</div>
     </div>
 
     <div class="panel">
-        <h2>Настройки громкости</h2>
+        <h2>⚙️ Настройки</h2>
         <div class="slider-container">
             <label for="volumeSlider">Громкость: <span id="volumeValue">100%</span></label>
-            <input type="range" id="volumeSlider" min="50" max="300" value="100" style="width:100%">
+            <input type="range" id="volumeSlider" min="50" max="500" value="100">
+        </div>
+        <div class="slider-container">
+            <label for="delaySlider">Задержка: <span id="delayValue">0.1 сек</span></label>
+            <input type="range" id="delaySlider" min="1" max="20" value="10">
         </div>
     </div>
 
@@ -79,16 +91,18 @@
         const stopBtn = document.getElementById('stopBtn');
         const volumeSlider = document.getElementById('volumeSlider');
         const volumeValue = document.getElementById('volumeValue');
+        const delaySlider = document.getElementById('delaySlider');
+        const delayValue = document.getElementById('delayValue');
         const statusEl = document.getElementById('status');
 
         // Аудио-переменные
         let audioContext;
-        let microphone;
-        let audioStream;
+        let mediaStream;
         let gainNode;
+        let delayNode;
         let isActive = false;
 
-        // Включение микрофона (упрощенная версия)
+        // Включение микрофона
         async function startMicrophone() {
             try {
                 statusEl.textContent = 'Запуск...';
@@ -96,26 +110,31 @@
                 // Создаём аудиоконтекст
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 
-                // Получаем доступ к микрофону (максимально простые настройки)
-                audioStream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: true 
-                }).catch(err => {
-                    statusEl.textContent = 'Ошибка доступа к микрофону';
-                    throw err;
+                // Получаем доступ к микрофону с настройками для окружающих звуков
+                mediaStream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false
+                    }
                 });
 
-                // Создаем усиление
-                microphone = audioContext.createMediaStreamSource(audioStream);
+                // Создаем узлы обработки
+                const source = audioContext.createMediaStreamSource(mediaStream);
                 gainNode = audioContext.createGain();
-                gainNode.gain.value = volumeSlider.value / 100 * 3; // Усиление в 3 раза
+                delayNode = audioContext.createDelay(2.0);
                 
-                // Подключаем
-                microphone.connect(gainNode).connect(audioContext.destination);
+                // Начальные значения
+                gainNode.gain.value = volumeSlider.value / 100 * 5; // Усиление в 5 раз
+                delayNode.delayTime.value = delaySlider.value / 10;
+                
+                // Подключаем цепочку: микрофон → задержка → усиление → выход
+                source.connect(delayNode).connect(gainNode).connect(audioContext.destination);
                 
                 // Обновляем интерфейс
                 startBtn.classList.add('active');
                 stopBtn.disabled = false;
-                statusEl.textContent = 'Микрофон включен';
+                statusEl.textContent = 'Микрофон включен - слушаем окружающие звуки';
                 statusEl.className = 'status status-on';
                 isActive = true;
 
@@ -129,8 +148,7 @@
         function stopMicrophone() {
             if (isActive) {
                 // Отключаем все
-                if (microphone) microphone.disconnect();
-                if (audioStream) audioStream.getTracks().forEach(track => track.stop());
+                if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
                 if (audioContext) audioContext.close();
                 
                 // Обновляем интерфейс
@@ -149,10 +167,16 @@
         volumeSlider.addEventListener('input', (e) => {
             const value = e.target.value;
             volumeValue.textContent = `${value}%`;
-            if(gainNode) gainNode.gain.value = value / 100 * 3;
+            if(gainNode) gainNode.gain.value = value / 100 * 5;
         });
 
-        // Автовосстановление при сворачивании
+        delaySlider.addEventListener('input', (e) => {
+            const value = e.target.value / 10;
+            delayValue.textContent = `${value.toFixed(1)} сек`;
+            if(delayNode) delayNode.delayTime.value = value;
+        });
+
+        // Автовосстановление
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden && isActive && audioContext?.state === 'suspended') {
                 audioContext.resume();
