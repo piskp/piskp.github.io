@@ -136,6 +136,10 @@
             <label for="noiseFilter">Подавление шума: <span id="noiseFilterValue">50%</span></label>
             <input type="range" id="noiseFilter" min="0" max="100" value="50">
         </div>
+        <div class="slider-container">
+            <label for="delaySlider">Задержка звука: <span id="delayValue">0.1 сек</span></label>
+            <input type="range" id="delaySlider" min="1" max="20" value="10">
+        </div>
     </div>
 
     <button id="themeBtn">🌙 Тёмная тема</button>
@@ -152,6 +156,8 @@
         const rangeValue = document.getElementById('rangeValue');
         const noiseFilterSlider = document.getElementById('noiseFilter');
         const noiseFilterValue = document.getElementById('noiseFilterValue');
+        const delaySlider = document.getElementById('delaySlider');
+        const delayValue = document.getElementById('delayValue');
         const themeBtn = document.getElementById('themeBtn');
         const statusEl = document.getElementById('status');
         const micIndicator = document.querySelector('.indicator');
@@ -164,6 +170,7 @@
         let whisperFilter;
         let compressor;
         let gainNode;
+        let delayNode;
         let isActive = false;
         let isStreetMode = false;
         let isPocketMode = false;
@@ -221,6 +228,10 @@
                 gainNode = audioContext.createGain();
                 gainNode.gain.value = rangeSlider.value / 100;
 
+                // Добавляем узел задержки
+                delayNode = audioContext.createDelay(2.0); // Максимальная задержка 2 секунды
+                delayNode.delayTime.value = delaySlider.value / 10; // Начальное значение 0.1 сек
+
                 microphone = audioContext.createMediaStreamSource(audioStream);
                 updateAudioChain();
 
@@ -241,7 +252,7 @@
             }
         }
 
-        // Обновление аудио-цепочки
+        // Обновление аудио-цепочки с задержкой
         function updateAudioChain() {
             if (!isActive) return;
 
@@ -255,9 +266,10 @@
                 source = audioContext.createMediaStreamSource(processedStream);
             }
 
-            // Подключаем все фильтры
+            // Подключаем все фильтры с задержкой
             source.connect(noiseFilter)
                  .connect(voiceBoost)
+                 .connect(delayNode) // Добавляем задержку в цепочку
                  .connect(whisperFilter)
                  .connect(compressor)
                  .connect(gainNode)
@@ -344,6 +356,12 @@
             noiseFilter.frequency.value = 100 + (value * 5);
         });
 
+        delaySlider.addEventListener('input', (e) => {
+            const value = e.target.value / 10;
+            delayValue.textContent = `${value.toFixed(1)} сек`;
+            if(delayNode) delayNode.delayTime.value = value;
+        });
+
         themeBtn.addEventListener('click', () => {
             document.body.classList.toggle('dark-mode');
             themeBtn.textContent = document.body.classList.contains('dark-mode') 
@@ -366,4 +384,4 @@
         }, 20000);
     </script>
 </body>
-    </html>
+</html>
