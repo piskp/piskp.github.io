@@ -129,7 +129,7 @@
     <div class="panel">
         <h2>Настройки</h2>
         <div class="slider-container">
-            <label for="rangeSlider">Дальность: <span id="rangeValue">50%</span></label>
+            <label for="rangeSlider">Дальность: <span id="rangeValue">100%</span></label>
             <input type="range" id="rangeSlider" min="10" max="200" value="100">
         </div>
         <div class="slider-container">
@@ -228,9 +228,9 @@
                 gainNode = audioContext.createGain();
                 gainNode.gain.value = rangeSlider.value / 100;
 
-                // Добавляем узел задержки
-                delayNode = audioContext.createDelay(2.0); // Максимальная задержка 2 секунды
-                delayNode.delayTime.value = delaySlider.value / 10; // Начальное значение 0.1 сек
+                // Создаем узел задержки
+                delayNode = audioContext.createDelay(2.0);
+                delayNode.delayTime.value = delaySlider.value / 10; // 0.1-2.0 сек
 
                 microphone = audioContext.createMediaStreamSource(audioStream);
                 updateAudioChain();
@@ -252,7 +252,7 @@
             }
         }
 
-        // Обновление аудио-цепочки с задержкой
+        // Обновление аудио-цепочки
         function updateAudioChain() {
             if (!isActive) return;
 
@@ -269,7 +269,7 @@
             // Подключаем все фильтры с задержкой
             source.connect(noiseFilter)
                  .connect(voiceBoost)
-                 .connect(delayNode) // Добавляем задержку в цепочку
+                 .connect(delayNode)  // Добавляем задержку в цепочку
                  .connect(whisperFilter)
                  .connect(compressor)
                  .connect(gainNode)
